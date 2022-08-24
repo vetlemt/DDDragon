@@ -1,0 +1,13 @@
+[package]
+name = "DDDragon"
+version = "0.1.0"
+authors = ["Vetle MT"]
+edition = "2022"
+
+[dependencies]
+crossterm = "0.21.0"
+
+[dependencies.tui]
+version = "0.16.0"
+default-features = false
+features = ["crossterm"]
