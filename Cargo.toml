@@ -1,13 +1,9 @@
 [package]
-name = "DDDragon"
+name = "dddragon"
 version = "0.1.0"
-authors = ["Vetle MT"]
-edition = "2022"
+edition = "2021"
 
 [dependencies]
-crossterm = "0.21.0"
+crossterm = "0.25.0"
+tui = "0.19.0"
 
-[dependencies.tui]
-version = "0.16.0"
-default-features = false
-features = ["crossterm"]

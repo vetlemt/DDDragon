@@ -14,6 +14,12 @@ pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> AppResult<()> {
                 app.running = false;
             }
         }
+        KeyCode::Up => {
+            app.n -= 0.01;
+        }
+        KeyCode::Down => {
+            app.n += 0.01;
+        }
         _ => {}
     }
     Ok(())

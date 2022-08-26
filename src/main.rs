@@ -1,10 +1,12 @@
+
+
 use std::io;
 use tui::backend::CrosstermBackend;
 use tui::Terminal;
-use {{crate_name}}::app::{App, AppResult};
-use {{crate_name}}::event::{Event, EventHandler};
-use {{crate_name}}::handler::handle_key_events;
-use {{crate_name}}::tui::Tui;
+use dddragon::app::{App, AppResult};
+use dddragon::event::{Event, EventHandler};
+use dddragon::handler::handle_key_events;
+use dddragon::tui::Tui;
 
 fn main() -> AppResult<()> {
     // Create an application.
@@ -27,6 +29,7 @@ fn main() -> AppResult<()> {
             Event::Key(key_event) => handle_key_events(key_event, &mut app)?,
             Event::Mouse(_) => {}
             Event::Resize(_, _) => {}
+            Event::Default => {}
         }
     }
 
