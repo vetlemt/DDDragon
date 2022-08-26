@@ -1,1 +1,0 @@
-/home/vetle/code/DDDragon/target/debug/libDDDragon.rlib: /home/vetle/code/DDDragon/src/app.rs /home/vetle/code/DDDragon/src/event.rs /home/vetle/code/DDDragon/src/handler.rs /home/vetle/code/DDDragon/src/lib.rs /home/vetle/code/DDDragon/src/tui.rs
