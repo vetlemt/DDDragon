@@ -1,5 +1,3 @@
-
-
 use std::io;
 use tui::backend::CrosstermBackend;
 use tui::Terminal;
@@ -7,6 +5,7 @@ use dddragon::app::{App, AppResult};
 use dddragon::event::{Event, EventHandler};
 use dddragon::handler::handle_key_events;
 use dddragon::tui::Tui;
+use dddragon::geometry;
 
 fn main() -> AppResult<()> {
     // Create an application.
