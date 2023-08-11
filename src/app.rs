@@ -17,11 +17,12 @@ pub struct App {
     /// Is the application running?
     pub running: bool,
     pub n: f64,
+    pub m: f64,
 }
 
 impl Default for App {
     fn default() -> Self {
-        Self { running: true , n: 0.49}
+        Self { running: true , n: 0.0, m: 0.0}
     }
 }
 
@@ -34,7 +35,7 @@ impl App {
     /// Handles the tick event of the terminal.
     pub fn tick(&self) {}
 
-    /// Renders the user interface widgets.
+    /// Renders the user interface widgets. 
     pub fn render<B: Backend>(&mut self, frame: &mut Frame<'_, B>) {
         // This is where you add new widgets.
         // See the following resources:
@@ -49,77 +50,80 @@ impl App {
 
         let player_height = 0.7;
         let view_correction = 0.5 + player_height;
-        let rectangle = Polygon::new(
-            vec![
-                Point::new(self.n, (self.n ) * view_correction.clone()),
-                Point::new(self.n, (1.0-self.n ) * view_correction.clone()),
-                Point::new(1.0-self.n, (1.0-self.n ) * view_correction.clone()),
-                Point::new(1.0-self.n, (self.n ) * view_correction.clone()),
-            ],
-            Color::Blue,
-        );
 
-        let floor = Polygon::new(
-            vec![
-                bottom_left.clone(),
-                rectangle.vertices[0].clone(),
-                rectangle.vertices[3].clone(),
-                bottom_right.clone(),
-            ],
-            Color::White,
-        );
+        frame.size().area();
 
-        let roof = Polygon::new(
-            vec![
-                top_left.clone(),
-                top_right.clone(),
-                rectangle.vertices[2].clone(),
-                rectangle.vertices[1].clone(),
-            ],
-            Color::White,
-        );
+        let res_x = frame.size().width as f64;
+        let res_y = frame.size().height as f64;
 
-        let wall_left = Polygon::new(
+        // println!("ratio {}", self.n);
+        let character_ratio = 1.8;
+        let aspect_ratio = res_x / res_y / character_ratio;
+        let aspect_padding = (aspect_ratio-1.0)/2.0;
+
+        let x_left = -1.0-aspect_padding;
+        let x_right = 1.0+aspect_padding;
+
+        let x_left_label = format!("{x_left:0.2}");
+        let x_right_label = format!("{x_right:0.2}");
+        let x_middle_label = format!("{:0.2}", (x_left + x_right)/2.0);
+
+
+        let tm = MatrixFactory::rotate((0.0).into(),self.n.into(),(self.m).into());
+
+        let mut triangle = Polygon::new(
             vec![
-                top_left.clone(),
-                rectangle.vertices[1].clone(),
-                rectangle.vertices[0].clone(),
-                bottom_left.clone(),
+                Point::new(0.0 , 0.25),
+                Point::new(0.25, -0.25),
+                Point::new(-0.25, -0.25),
             ],
             Color::Yellow,
+            (0.0,0.0),
+            tm,
         );
 
-        let wall_right = Polygon::new(
+        let mut onebyone = Polygon::new(
             vec![
-                top_right.clone(),
-                bottom_right.clone(),
-                rectangle.vertices[3].clone(),
-                rectangle.vertices[2].clone(),
+                Point::new(-1.0,-1.0),
+                Point::new(-1.0,1.0),
+                Point::new(1.0,1.0),
+                Point::new(1.0,-1.0),
             ],
-            Color::Yellow,
+            Color::Gray,
+            (0.0,0.0),MatrixFactory::identity(),
         );
 
-        let wand = Polygon::new(
-            vec![
-                Point::new(0.8, 0.0),
-                Point::new(0.7, 0.3),
-                Point::new(0.73, 0.35),
-                Point::new(0.85, 0.0),
-                Point::new(0.78, 0.0),
-                Point::new(0.7, 0.25),
-                Point::new(0.7, 0.3),
-            ],
-            Color::Magenta,
+        let pentagram_vert: Vec<Point> = (0..5).into_iter().map(|n| {
+            let step = 2.0*PI/5.0;
+            let offset = -PI/10.0 * 0.0;
+            let angle = n as f64 *2.0* step + offset;
+            let scale = 0.5f64;
+            Point { x: angle.cos() * scale, y: angle.sin() * scale }
+        }).collect();
+
+        let mut pentagram = Polygon::new(
+            pentagram_vert,
+            Color::Red,
+            (0.0,0.0),
+            tm,
         );
+
+        pentagram.render();
+        onebyone.render();
 
         let datasets = vec![
-            roof.as_dataset(),
-            floor.as_dataset(),
-            wall_left.as_dataset(),
-            wall_right.as_dataset(),
-            wand.as_dataset(),
+            pentagram.as_dataset(),
+            onebyone.as_dataset(),
+            // roof.as_dataset(),
+            // floor.as_dataset(),
+            // wall_left.as_dataset(),
+            // wall_right.as_dataset(),
+            // wand.as_dataset(),
         ];
 
+        // println!("x: {res_x}");
+        // println!("y: {res_y}");
+        // println!("x/y: {aspect_ratio}");
 
         frame.render_widget(
             Chart::new(datasets)
@@ -130,13 +134,13 @@ impl App {
                 .x_axis(Axis::default()
                     //.title(Span::styled("X Axis", Style::default().fg(Color::Red)))
                     .style(Style::default().fg(Color::White))
-                    .bounds([0.0, 1.0])
-                    .labels(["0.0", "0.5", "1.0"].iter().cloned().map(Span::from).collect()))
+                    .bounds([x_left, x_right])
+                    .labels([x_left_label, x_middle_label, x_right_label].iter().cloned().map(Span::from).collect()))
                 .y_axis(Axis::default()
                     //.title(Span::styled("Y Axis", Style::default().fg(Color::Red)))
                     .style(Style::default().fg(Color::White))
-                    .bounds([0.0, 1.0])
-                    .labels(["0.0", "0.5", "1.0"].iter().cloned().map(Span::from).collect())),
+                    .bounds([-1.0, 1.0])
+                    .labels(["-1.0", "0", "1.0"].iter().cloned().map(Span::from).collect())),
             frame.size(),
         )
     }
@@ -208,7 +212,8 @@ impl Line{
             .graph_type(GraphType::Line)
             .style(Style::default().fg(self.color))
             .data(&self.points)
-    }
+    } 
+ 
 
     pub fn color(mut self, color : Color) -> Self {
         self.color = color;
@@ -221,15 +226,20 @@ struct Polygon{
     points: Vec<(f64, f64)>,
     sides: Vec<Line>,
     color: Color,
+    offset: (f64,f64),
+    transformation: Matrix,
 }
 
 impl Polygon {
-    fn new(vertices: Vec<Point>, color : Color) -> Polygon{
+    fn new(vertices: Vec<Point>, color : Color, offset: (f64,f64), transformation: Matrix) -> Polygon{
         Polygon{
             vertices: vertices.clone(),
             points: Polygon::generate_points(&vertices, &color),
             sides: Polygon::generate_sides(&vertices, &color),
-            color
+            color,
+            offset,
+            transformation
+
         }
     }
     fn generate_sides(vertices: &Vec<Point>, color : &Color) -> Vec<Line> {
@@ -268,8 +278,39 @@ impl Polygon {
             .data(&self.points)
     }
 
-    fn transform(&mut self, tm: Matrix) {
+    fn render(&mut self){
+        self.points = Polygon::generate_points(&self.vertices, &self.color);
+        for  i in 0..self.points.len() {
+            let (x,y) = self.points.get(i).unwrap();
+            let z = 0f64;
 
+            let tm = &self.transformation;
+            let (offx, offy) = &self.offset;
+
+            let xx = tm[0][0]*x + tm[0][1]*y + tm[0][2]*z + offx;  
+            let yy = tm[1][0]*x + tm[1][1]*y + tm[1][2]*z + offy;  
+            
+            let (x,y) = self.points.get_mut(i).unwrap();
+
+            *x = xx; *y = yy;
+        }
+    }
+
+
+    pub fn transform(&mut self, tm: Matrix) {
+        for i in 0..self.points.len(){
+            let (x,y) = self.points.get(i).unwrap();
+            let z = 0f64;
+
+            let xx = tm[0][0]*x + tm[0][1]*y + tm[0][2]*z;  
+            let yy = tm[1][0]*x + tm[1][1]*y + tm[1][2]*z;  
+            let zz = tm[2][0]*x + tm[2][1]*y + tm[2][2]*z;  
+
+            let (x,y) = self.points.get_mut(i).unwrap();
+
+            *x = xx; *y = yy;
+            
+        }
     }
 
 }
@@ -280,6 +321,14 @@ type Matrix = [[f64;3];3];
 
 struct MatrixFactory;
 impl MatrixFactory {
+    fn identity() -> Matrix {
+        [
+            [1f64, 0f64, 0f64],
+            [0f64, 1f64, 0f64],
+            [0f64, 0f64, 1f64],
+        ]
+    }
+
     fn rotate_x(theta: Radians) -> Matrix {
         let cos = theta.data.cos();
         let sin = theta.data.sin();
@@ -310,7 +359,7 @@ impl MatrixFactory {
         ]
     }
 
-    fn rotate(roll: Radians, pitch: Radians, yaw: Radians) -> Matrix {
+    fn rotate(roll: Radians, pitch: Radians, yaw: Radians)  -> Matrix {
         let sina = yaw.data.sin();
         let cosa = yaw.data.cos();
         let sinb = pitch.data.sin();
@@ -345,6 +394,12 @@ struct Radians {
 
 struct Degrees {
     data: f64
+}
+
+impl From<f64> for Radians {
+    fn from(value: f64) -> Self {
+        Radians { data: value }
+    }
 }
 
 impl Into<Radians> for Degrees {

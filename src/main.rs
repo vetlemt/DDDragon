@@ -16,8 +16,12 @@ fn main() -> AppResult<()> {
     let backend = CrosstermBackend::new(io::stderr());
     let terminal = Terminal::new(backend)?;
     let events = EventHandler::new(250);
+    let s = terminal.size();
+    println!("{s:?}");
     let mut tui = Tui::new(terminal, events);
     tui.init()?;
+
+
 
     // Start the main loop.
     while app.running {
