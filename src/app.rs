@@ -1,4 +1,5 @@
 use std::error;
+use std::f64::consts::PI;
 use tui::backend::Backend;
 use tui::layout::{Alignment, Constraint};
 use tui::style::{Color, Style};
@@ -267,4 +268,93 @@ impl Polygon {
             .data(&self.points)
     }
 
+    fn transform(&mut self, tm: Matrix) {
+
+    }
+
+}
+
+
+
+type Matrix = [[f64;3];3];
+
+struct MatrixFactory;
+impl MatrixFactory {
+    fn rotate_x(theta: Radians) -> Matrix {
+        let cos = theta.data.cos();
+        let sin = theta.data.sin();
+        [ 
+            [1f64, 0f64, 0f64],
+            [0f64, cos , -sin],
+            [0f64, sin , cos ]
+        ]
+    }
+
+    fn rotate_y(theta: Radians) -> Matrix {
+        let cos = theta.data.cos();
+        let sin = theta.data.sin();
+        [ 
+            [cos , 0f64, sin ],
+            [0f64, 1f64, 0f64],
+            [-sin, 0f64, cos ]
+        ]
+    }
+
+    fn rotate_z(theta: Radians) -> Matrix {
+        let cos = theta.data.cos();
+        let sin = theta.data.sin();
+        [ 
+            [cos , -sin, 0f64],
+            [sin ,  cos, 0f64],
+            [0f64, 0f64, 1f64]
+        ]
+    }
+
+    fn rotate(roll: Radians, pitch: Radians, yaw: Radians) -> Matrix {
+        let sina = yaw.data.sin();
+        let cosa = yaw.data.cos();
+        let sinb = pitch.data.sin();
+        let cosb = pitch.data.cos();
+        let sing = roll.data.sin();
+        let cosg = roll.data.cos();
+
+        [ 
+            [
+                cosa*cosb, 
+                (cosa*sinb*sing) - (sina*cosg), 
+                (cosa*sinb*cosg) + (sina*sing)
+            ],
+            [
+                sina*cosb, 
+                (sina*sinb*sing) + (cosa*cosg), 
+                (sina*sinb*cosg) - (cosa*sing)
+            ],
+            [
+                -sinb, 
+                cosb*sing, 
+                cosb*cosg
+            ],
+        ]
+    }
+}
+
+
+struct Radians {
+    data: f64
+}
+
+struct Degrees {
+    data: f64
+}
+
+impl Into<Radians> for Degrees {
+    fn into(self) -> Radians {
+        Radians { data: self.data*PI/180f64 }
+    }
+}
+
+impl Into<Degrees> for Radians {
+    fn into(self) -> Degrees {
+        Degrees { data: self.data*180f64/PI }
+    }
 }
