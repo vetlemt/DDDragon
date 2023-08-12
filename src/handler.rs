@@ -8,12 +8,6 @@ pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> AppResult<()> {
         KeyCode::Esc => {
             app.running = false;
         }
-        // exit application on Ctrl-D
-        KeyCode::Char('d') | KeyCode::Char('D') => {
-            if key_event.modifiers == KeyModifiers::CONTROL {
-                app.running = false;
-            }
-        }
         KeyCode::Up => {
             app.n -= 0.05;
         }
@@ -25,6 +19,19 @@ pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> AppResult<()> {
         }
         KeyCode::Right => {
             app.m += 0.05;
+        }
+
+        KeyCode::Char('w') => {
+            app.posz -= 0.05;
+        }
+        KeyCode::Char('a') => {
+            app.posx += 0.05;
+        }
+        KeyCode::Char('s') => {
+            app.posz += 0.05;
+        }
+        KeyCode::Char('d') => {
+            app.posx -= 0.05;
         }
         _ => {}
     }
