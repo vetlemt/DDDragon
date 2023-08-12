@@ -22,16 +22,18 @@ type Points2d = Vec<(f64,f64)>;
 pub struct App {
     /// Is the application running?
     pub running: bool,
-    pub n: f64,
-    pub m: f64,
+    pub a: f64,
+    pub b: f64,
 
+    // global offsets
     pub posx: f64,
+    pub posy: f64,
     pub posz: f64,
 }
 
 impl Default for App {
     fn default() -> Self {
-        Self { running: true , n: 0.0, m: 0.0, posx:0.0, posz:0.0}
+        Self { running: true , a: 0.0, b: 0.0, posx:0.0, posy:0.0, posz:0.0}
     }
 }
 
@@ -51,14 +53,7 @@ impl App {
         // - https://docs.rs/tui/0.16.0/tui/widgets/index.html
         // - https://github.com/fdehau/tui-rs/tree/v0.16.0/examples
 
-        let center = Point::new(0.5, 0.5);
-        let top_left = Point::new(0.0, 1.0);
-        let top_right = Point::new(1.0, 1.0);
-        let bottom_left = Point::new(0.0, 0.0);
-        let bottom_right = Point::new(1.0, 0.0);
-
         let player_height = 0.1;
-        let view_correction = 0.5 + player_height;
 
         frame.size().area();
 
@@ -78,8 +73,8 @@ impl App {
         let x_middle_label = format!("{:0.2}", (x_left + x_right)/2.0);
 
 
-        let tm: [[f64; 3]; 3] = MatrixFactory::rotate((self.n).into(),(self.m).into(),(0.0).into());
-        let tm2: [[f64; 3]; 3] = MatrixFactory::rotate((self.n/2.0).into(),(self.m/2.0).into(),(0.0).into());
+        let tm: [[f64; 3]; 3] = MatrixFactory::rotate((self.a).into(),(self.b).into(),(0.0).into());
+        let tm2: [[f64; 3]; 3] = MatrixFactory::rotate((self.a/2.0).into(),(self.b/2.0).into(),(0.0).into());
 
         // let mut triangle = Polygon::new(
         //     vec![
@@ -124,7 +119,7 @@ impl App {
             (1.0,1.0,3.0),
             tm2,
         );
-        let ftr = (1.0,1.0,0.0);
+        let ftr = (1.0,1.0,0.0);  // naming : (front || back) && (top || bottom) && (left || right)
         let ftl = (-1.0,1.0,0.0);
         let fbr = (1.0,-1.0,0.0);
         let fbl = (-1.0,-1.0,0.0);
@@ -168,25 +163,22 @@ impl App {
             ]
         );
 
-        pentagram2.render(self.m.clone(), self.n.clone(), self.posx.clone(), self.posz.clone());
-        pentagram.render(self.m.clone(), self.n.clone(), self.posx.clone(), self.posz.clone());
-        onebyone.render(self.m.clone(), self.n.clone(), self.posx.clone(), self.posz.clone());
-
-        // unit_cube.render(self.m.clone(), self.n.clone());
+        pentagram2.render(&self);
+        unit_cube.render(&self);
+        pentagram.render(&self);
+        onebyone.render(&self);
         // onebyone.render();
 
         let mut datasets = vec![
             onebyone.as_dataset(),
             pentagram.as_dataset(),
             pentagram2.as_dataset(),
-            // roof.as_dataset(),
-            // floor.as_dataset(),
-            // wall_left.as_dataset(),
-            // wall_right.as_dataset(),
-            // wand.as_dataset(),
         ];
 
         datasets.append(unit_cube.as_datasets().as_mut());
+
+
+
 
 
         // println!("x: {res_x}");
@@ -215,33 +207,6 @@ impl App {
 }
 
 
-#[derive(Debug,Clone)]
-struct Point {
-    x: f64,
-    y: f64,
-}
-impl Point{
-    fn new(x: f64, y: f64) -> Point{
-        Point{x, y}
-    }
-    fn add(&self, other: &Point) -> Point{
-        Point{x: self.x + other.x, y: self.y + other.y}
-    }
-    fn subtract(&self, other: &Point) -> Point {
-        Point{x: self.x - other.x, y: self.y - other.y}
-    }
-    fn scale(&self, scalar : f64) -> Point {
-        Point{x: self.x * scalar, y: self.y * scalar}
-    }
-    fn get_ref(&self) -> (&f64, &f64){
-        (&self.x, &self.y)
-    }
-}
-impl Into<(f64,f64)> for Point {
-    fn into(self) -> (f64,f64) {
-        (self.x,self.y)
-    }
-}
 
 const LINE_POINTS: i32 = 200;
 const LINE_RESOLUTION: f64 = 1.0 / (LINE_POINTS as f64);
@@ -249,6 +214,7 @@ struct Line{
     points: Points3d,
     start: Point3d,
     end: Point3d,
+    center: Point3d,
     color: Color,
 }
 
@@ -258,9 +224,20 @@ impl Line{
             points: Line::interpolate(&start, &end),
             start,
             end,
+            center: Line::center_point_of(&start, &end),
             color,
         }
     }
+
+    
+
+    fn center_point_of(a: &Point3d, b: &Point3d) -> Point3d {
+        let (a0, a1, a2) = a;
+        let (b0, b1, b2) = b;
+        let c = |a,b| -> f64 {(a+b)/2.0};
+        (c(a0, b0),c(a1, b1),c(a2, b2))
+    }
+
     pub fn interpolate(start: &Point3d, end: &Point3d) -> Points3d {
         let (endx, endy, endz) = end;
         let (startx, starty, startz) = start;
@@ -301,51 +278,51 @@ impl Line{
 struct Polygon{
     vertices: Points3d,
     points: Points3d,
-    sides: Vec<Line>,
     color: Color,
     offset: Point3d,
     transformation: Matrix,
     projection: Points2d,
+    center: Point3d
 }
 
 impl Polygon {
-    fn new(vertices: Points3d, color : Color, offset: Point3d, transformation: Matrix) -> Polygon{
-        Polygon{
+    fn new(vertices: Points3d, color : Color, offset: Point3d, transformation: Matrix) -> Self{
+        Self{
             vertices: vertices.clone(),
-            points: Polygon::generate_points(&vertices, &color),
-            sides: Polygon::generate_sides(&vertices, &color),
+            center: (0.0f64,0.0f64,0.0f64),
+            points: Vec::new(),
             color,
             offset,
             transformation,
             projection: Vec::new(),
         }
     }
-    fn generate_sides(vertices: &Points3d, color : &Color) -> Vec<Line> {
+    fn generate_sides(&mut self) -> Vec<Line> {
         let mut sides : Vec<Line> = Vec::new();
-        for i in 1..vertices.len() {
+        for i in 1..self.vertices.len() {
             let l = Line::new(
-                vertices[i-1].clone(),
-                vertices[i].clone(),
-                *color
+                self.vertices[i-1].clone(),
+                self.vertices[i].clone(),
+                self.color
             );
             sides.push(l);
         }
         let l = Line::new(
-            vertices[vertices.len()-1].clone(),
-            vertices[0].clone(),
-            *color
+            self.vertices[self.vertices.len()-1].clone(),
+            self.vertices[0].clone(),
+            self.color
         );
         sides.push(l);
         sides
     }
 
-    fn generate_points(vertices: &Points3d, color : &Color) -> Points3d {
-        let mut sides = Polygon::generate_sides(&vertices, &color);
+    fn generate_points(&mut self) {
+        let mut sides = self.generate_sides();
         let mut points : Points3d = Vec::new();
         for i in 0..sides.len() {
             points.append(&mut sides[i].points);
         }
-        points
+        self.points = points;
     }
 
     fn as_dataset(&self) -> Dataset {
@@ -356,33 +333,30 @@ impl Polygon {
             .data(&self.projection)
     }
 
-    fn render(&mut self, m: f64, n: f64, posx: f64, posz: f64){
-        self.points = Polygon::generate_points(&self.vertices, &self.color);
-        self.transform(posx,posz);
-        // self.projection = self.points.iter().map(|(x,y,_)| {(x.clone(),y.clone())}).collect();
-        self.project(m,n);
+    fn render(&mut self, app: &App){
+        self.generate_points();
+        self.transform(&app);
+        self.project(app);
     }
     
-    fn project(&mut self, m: f64, n: f64){
-        let fov = PI/4.0; // 120deg
+    fn project(&mut self, app: &App){
+        let fov = PI/4.0; // 90deg
         let ez = 1.0/((fov/2.0).tan());
         self.projection = self.points.iter().map(|a| {
-            project_point(a.clone(), (0.0, 0.0, ez), (0.0,0.0,0.0)) // 
+            project_point(a.clone(), (0.0, 0.0, ez), (0.0,0.0,0.0)) 
         }).collect()
     } 
 
-    pub fn transform(&mut self, posx: f64, posz: f64) {
+    pub fn transform(&mut self, app: &App) {
         let tm = &self.transformation;
         for i in 0..self.points.len(){
             let (x,y,z) = self.points.get(i).unwrap();
-            let z = 0f64;
 
-            let tm = &self.transformation;
             let (offx, offy, offz) = &self.offset;
 
-            let xx = tm[0][0]*x + tm[0][1]*y + tm[0][2]*z + offx + posx;  
-            let yy = tm[1][0]*x + tm[1][1]*y + tm[1][2]*z + offy ;  
-            let zz = tm[2][0]*x + tm[2][1]*y + tm[2][2]*z + offz + posz;  
+            let xx = tm[0][0]*x + tm[0][1]*y + tm[0][2]*z + offx + app.posx;  
+            let yy = tm[1][0]*x + tm[1][1]*y + tm[1][2]*z + offy + app.posy;  
+            let zz = tm[2][0]*x + tm[2][1]*y + tm[2][2]*z + offz + app.posz;  
             
             let (x,y, z) = self.points.get_mut(i).unwrap();
 
@@ -415,9 +389,9 @@ impl Polyhedron {
         }).collect()
     }
 
-    fn render(&mut self, m: f64, n: f64,posx: f64, posy: f64 ) {
+    fn render(&mut self, app: &App) {
         for i in 0..self.polygons.len(){
-            self.polygons.get_mut(i).unwrap().render(m, n, posx, posy)
+            self.polygons.get_mut(i).unwrap().render(app)
         }
     } 
 }

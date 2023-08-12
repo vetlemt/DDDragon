@@ -9,16 +9,16 @@ pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> AppResult<()> {
             app.running = false;
         }
         KeyCode::Up => {
-            app.n -= 0.05;
+            app.a -= 0.05;
         }
         KeyCode::Down => {
-            app.n += 0.05;
+            app.a += 0.05;
         }
         KeyCode::Left => {
-            app.m -= 0.05;
+            app.b -= 0.05;
         }
         KeyCode::Right => {
-            app.m += 0.05;
+            app.b += 0.05;
         }
 
         KeyCode::Char('w') => {
