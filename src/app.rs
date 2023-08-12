@@ -1,3 +1,4 @@
+use std::borrow::BorrowMut;
 use std::error;
 use std::f64::consts::PI;
 use tui::backend::Backend;
@@ -29,11 +30,14 @@ pub struct App {
     pub posx: f64,
     pub posy: f64,
     pub posz: f64,
+
+    polygons: Vec<Polygon>,
 }
 
 impl Default for App {
     fn default() -> Self {
-        Self { running: true , a: 0.0, b: 0.0, posx:0.0, posy:0.0, posz:0.0}
+        Self { running: true , a: 0.0, b: 0.0,
+            posx:0.0, posy:0.0, posz:0.0, polygons: Vec::new()}
     }
 }
 
@@ -52,6 +56,7 @@ impl App {
         // See the following resources:
         // - https://docs.rs/tui/0.16.0/tui/widgets/index.html
         // - https://github.com/fdehau/tui-rs/tree/v0.16.0/examples
+        self.polygons.clear();
 
         let player_height = 0.1;
 
@@ -135,7 +140,7 @@ impl App {
                     vec![
                         ftr, fbr, fbl, ftl
                     ],
-                    Color::Gray,
+                    Color::Blue,
                     (player_height,0.0,7.0),tm
                 ),
                 Polygon::new(
@@ -149,7 +154,7 @@ impl App {
                     vec![                        
                         btr, bbr, bbl, btl
                     ],
-                    Color::Blue,
+                    Color::LightYellow,
                     (player_height,0.0,7.0),tm
                 ),
                 Polygon::new(
@@ -167,27 +172,30 @@ impl App {
         unit_cube.render(&self);
         pentagram.render(&self);
         onebyone.render(&self);
-        // onebyone.render();
 
-        let mut datasets = vec![
-            onebyone.as_dataset(),
-            pentagram.as_dataset(),
-            pentagram2.as_dataset(),
-        ];
+        self.polygons.push(pentagram2);
+        self.polygons.push(pentagram);
+        self.polygons.push(onebyone);
+        for p in unit_cube.polygons {
+            self.polygons.push(p)
+        }
 
-        datasets.append(unit_cube.as_datasets().as_mut());
+        //remove things that are too close or behind the camera
+        self.polygons.retain(|p| {
+            p.center.2 + p.offset.2 + self.posz > 1.0
+        });
+        
+        self.polygons.sort_by(|a,b| {   // to render in the correct order
+            b.center.2.partial_cmp(&a.center.2.to_owned()).unwrap()
+        });
 
-
-
-
-
-        // println!("x: {res_x}");
-        // println!("y: {res_y}");
-        // println!("x/y: {aspect_ratio}");
-
+        let datasets = self.polygons.iter().rev().map(|p|{
+            p.as_dataset()
+        }).collect();
+        
         frame.render_widget(
             Chart::new(datasets)
-                .block(Block::default().title(" DDDragon ").border_type(BorderType::Plain))
+                .block(Block::default().title(" 3T ").border_type(BorderType::Plain))
                 .style(Style::default().fg(Color::White))
                 .hidden_legend_constraints((Constraint::Length(0), Constraint::Length(0)))
 
@@ -274,7 +282,7 @@ impl Line{
     // }
 }
 
-
+#[derive(Debug)]
 struct Polygon{
     vertices: Points3d,
     points: Points3d,
@@ -282,7 +290,7 @@ struct Polygon{
     offset: Point3d,
     transformation: Matrix,
     projection: Points2d,
-    center: Point3d
+    center /*of gravity*/: Point3d,
 }
 
 impl Polygon {
@@ -297,7 +305,8 @@ impl Polygon {
             projection: Vec::new(),
         }
     }
-    fn generate_sides(&mut self) -> Vec<Line> {
+    fn generate_sides_and_center(&mut self) -> Vec<Line> {
+        let (c0, c1, c2) = self.center.borrow_mut();
         let mut sides : Vec<Line> = Vec::new();
         for i in 1..self.vertices.len() {
             let l = Line::new(
@@ -305,6 +314,8 @@ impl Polygon {
                 self.vertices[i].clone(),
                 self.color
             );
+            let (l0, l1, l2) = l.center;
+            *c0 += l0; *c1 += l1; *c2 += l2;
             sides.push(l);
         }
         let l = Line::new(
@@ -312,12 +323,20 @@ impl Polygon {
             self.vertices[0].clone(),
             self.color
         );
+        let (l0, l1, l2) = l.center;
+        *c0 += l0; *c1 += l1; *c2 += l2;
+        
         sides.push(l);
+        
+        let n = sides.len() as f64;
+        *c0 /= n; *c1 /= n; *c2 /= n;
+        
         sides
     }
 
+
     fn generate_points(&mut self) {
-        let mut sides = self.generate_sides();
+        let mut sides = self.generate_sides_and_center();
         let mut points : Points3d = Vec::new();
         for i in 0..sides.len() {
             points.append(&mut sides[i].points);
