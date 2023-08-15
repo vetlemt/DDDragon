@@ -9,29 +9,29 @@ pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> AppResult<()> {
             app.running = false;
         }
         KeyCode::Up => {
-            app.a -= 0.05;
+            app.world.camera_pitch -= 0.05;
         }
         KeyCode::Down => {
-            app.a += 0.05;
+            app.world.camera_pitch += 0.05;
         }
         KeyCode::Left => {
-            app.b -= 0.05;
+            app.world.camera_yaw -= 0.05;
         }
         KeyCode::Right => {
-            app.b += 0.05;
+            app.world.camera_yaw += 0.05;
         }
 
         KeyCode::Char('w') => {
-            app.posz -= 0.05;
+            app.world.world_translation_z -= 0.05;
         }
         KeyCode::Char('a') => {
-            app.posx += 0.05;
+            app.world.world_translation_x += 0.05;
         }
         KeyCode::Char('s') => {
-            app.posz += 0.05;
+            app.world.world_translation_z += 0.05;
         }
         KeyCode::Char('d') => {
-            app.posx -= 0.05;
+            app.world.world_translation_x -= 0.05;
         }
         _ => {}
     }

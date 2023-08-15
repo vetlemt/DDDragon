@@ -40,7 +40,7 @@ impl<B: Backend> Tui<B> {
     /// [`Draw`]: tui::Terminal::draw
     /// [`rendering`]: crate::app::App::render
     pub fn draw(&mut self, app: &mut App) -> AppResult<()> {
-        self.terminal.draw(|frame| app.render(frame))?;
+        self.terminal.draw( |frame| app.render(frame))?;
         Ok(())
     }
 

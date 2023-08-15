@@ -1,6 +1,8 @@
 use std::borrow::BorrowMut;
 use std::error;
 use std::f64::consts::PI;
+use futures::future::join_all;
+use threadpool::ThreadPool;
 use tui::backend::Backend;
 use tui::layout::{Alignment, Constraint};
 use tui::style::{Color, Style};
@@ -23,21 +25,19 @@ type Points2d = Vec<(f64,f64)>;
 pub struct App {
     /// Is the application running?
     pub running: bool,
-    pub a: f64,
-    pub b: f64,
-
-    // global offsets
-    pub posx: f64,
-    pub posy: f64,
-    pub posz: f64,
+    
+    pub world: WorldMetrics,
 
     polygons: Vec<Polygon>,
 }
 
 impl Default for App {
     fn default() -> Self {
-        Self { running: true , a: 0.0, b: 0.0,
-            posx:0.0, posy:0.0, posz:0.0, polygons: Vec::new()}
+        Self { 
+            running: true , 
+            world: WorldMetrics::default(), 
+            polygons: Vec::new()
+        }
     }
 }
 
@@ -78,8 +78,8 @@ impl App {
         let x_middle_label = format!("{:0.2}", (x_left + x_right)/2.0);
 
 
-        let tm: [[f64; 3]; 3] = MatrixFactory::rotate((self.a).into(),(self.b).into(),(0.0).into());
-        let tm2: [[f64; 3]; 3] = MatrixFactory::rotate((self.a/2.0).into(),(self.b/2.0).into(),(0.0).into());
+        let tm: [[f64; 3]; 3] = MatrixFactory::rotate((0.0).into(),(0.0).into(),(0.0).into());
+        let tm2: [[f64; 3]; 3] = MatrixFactory::rotate((0.0/2.0).into(),(0.0/2.0).into(),(0.0).into());
 
         // let mut triangle = Polygon::new(
         //     vec![
@@ -105,32 +105,32 @@ impl App {
 
         let pentagram_vert: Points3d = (0..5).into_iter().map(|n| {
             let step = 2.0*PI/5.0;
-            let offset = -PI/10.0 * 0.0;
+            let offset = -PI/10.0;
             let angle = n as f64 *2.0* step + offset;
-            let scale = 0.5f64;
+            let scale = 1.0f64;
             (angle.cos() * scale, angle.sin() * scale , 0.0)
         }).collect();
 
         let mut pentagram = Polygon::new(
             pentagram_vert.clone(),
-            Color::LightMagenta,
-            (1.0,1.0,5.0),
-            tm,
+            Color::Red,
+            (0.0,0.0,7.0),
+            tm2,
         );
 
         let mut pentagram2 = Polygon::new(
             pentagram_vert,
             Color::Red,
-            (1.0,1.0,3.0),
+            (0.0,0.0,7.0),
             tm2,
         );
-        let ftr = (1.0,1.0,0.0);  // naming : (front || back) && (top || bottom) && (left || right)
-        let ftl = (-1.0,1.0,0.0);
-        let fbr = (1.0,-1.0,0.0);
-        let fbl = (-1.0,-1.0,0.0);
-        let btr = (1.0,1.0,-1.0);
-        let btl = (-1.0,1.0,-1.0);
-        let bbr = (1.0,-1.0,-1.0);
+        let ftr = ( 1.0, 1.0, 1.0);  // naming : (front || back) && (top || bottom) && (left || right)
+        let ftl = (-1.0, 1.0, 1.0);
+        let fbr = ( 1.0,-1.0, 1.0);
+        let fbl = (-1.0,-1.0, 1.0);
+        let btr = ( 1.0, 1.0,-1.0);
+        let btl = (-1.0, 1.0,-1.0);
+        let bbr = ( 1.0,-1.0,-1.0);
         let bbl = (-1.0,-1.0,-1.0);
 
         
@@ -141,50 +141,140 @@ impl App {
                         ftr, fbr, fbl, ftl
                     ],
                     Color::Blue,
-                    (player_height,0.0,7.0),tm
+                    (0.0,0.0,7.0),tm2
                 ),
                 Polygon::new(
                     vec![
                         ftr, fbr, bbr, btr
                     ],
                     Color::Green,
-                    (player_height,0.0,7.0),tm
+                    (0.0,0.0,7.0),tm2
                 ),
                 Polygon::new(
                     vec![                        
                         btr, bbr, bbl, btl
                     ],
                     Color::LightYellow,
-                    (player_height,0.0,7.0),tm
+                    (0.0,0.0,7.0),tm2
                 ),
                 Polygon::new(
                     vec![
                         ftl, fbl, bbl, btl
                     ],
                     Color::Magenta,
-                    (player_height,0.0,7.0),tm
+                    (0.0,0.0,7.0),tm2
                 ),
 
             ]
         );
 
-        pentagram2.render(&self);
-        unit_cube.render(&self);
-        pentagram.render(&self);
-        onebyone.render(&self);
+        let pentaface: Points3d = (0..5).into_iter().map(|n| {
+            let step = PI/5.0;
+            let offset = -PI/10.0 * 0.0;
+            let angle = n as f64 *2.0* step + offset;
+            let scale = 0.5f64;
+            (angle.cos() * scale, 0.0, angle.sin() * scale )
+        }).collect();
 
-        self.polygons.push(pentagram2);
+
+        let phi = (1.0 + 5.0f64.sqrt())/2.0;
+        let phi_i = 1.0 / phi;
+        let dodecavertexes = vec![
+            (1.0   , 1.0   , 1.0  ),
+            (1.0   , 1.0   , -1.0 ),
+            (1.0   , -1.0  , 1.0  ),
+            (1.0   , -1.0  , -1.0 ),
+
+            (0.0   , phi_i, phi   ),
+            (0.0   , phi_i, -phi  ),
+            (0.0   , -phi_i, phi  ),
+            (0.0   , -phi_i, -phi ),
+            
+            (-1.0   , 1.0   , 1.0  ),
+            (-1.0   , 1.0   , -1.0 ),
+            (-1.0   , -1.0  , 1.0  ),
+            (-1.0   , -1.0  , -1.0 ),
+
+            (phi_i , phi  , 0.0   ),
+            (phi_i , -phi  , 0.0  ),
+            (-phi_i , phi  , 0.0  ),
+            (-phi_i , -phi  , 0.0 ),
+            
+            (phi   , 0.0  , phi_i ),
+            (phi   , 0.0  , -phi_i),
+            (-phi  , 0.0  , phi_i ),
+            (-phi  , 0.0  , -phi_i),
+        ];
+
+        let len = |(a0,a1,a2) : Point3d|   -> f64 {
+            ((a0*a0) + (a1*a1) + (a2*a2)).sqrt()
+        };
+        let sub = |(a0,a1,a2): Point3d, (b0,b1,b2) : Point3d|   -> Point3d {
+            (b0-a0 , b1-a1 , b2-a2)
+        };
+
+        let mut dodecaskeleton : Points3d = Vec::new();
+
+        for v0 in dodecavertexes.clone() {
+            let mut shortest_distance = 10.0;
+            let mut closest_vertex : Point3d = v0;
+            for v1 in dodecavertexes.clone() {
+                let distance = len(sub(v0,v1));
+                if distance < shortest_distance { 
+                    shortest_distance = distance;
+                    closest_vertex = v1;
+                }
+            } 
+            dodecaskeleton.push(closest_vertex);
+        }
+
+        // let mut dodecahedron = Polygon::new(dodecaskeleton, Color::Green, (0.0,0.0,10.0), tm);
+        // dodecahedron.render(&self); 
+        // self.polygons.push(dodecahedron);
+        
+        // let mut dodecafaces : Vec<Polygon> = Vec::new();
+        // for i in 0..12 {
+        //     dodecafaces.push(
+        //         Polygon::new(
+        //             vec![
+        //                 dodecavertexes.get(i % 20).unwrap().clone(),
+        //                 dodecavertexes.get((i+3) % 20).unwrap().clone(),
+        //                 dodecavertexes.get((i+6) % 20).unwrap().clone(),
+        //                 dodecavertexes.get((i+9) % 20).unwrap().clone(),
+        //                 dodecavertexes.get((i+12) % 20).unwrap().clone(),
+        //             ], 
+        //             Color::Green, 
+        //             (0.0,0.0,10.0),tm 
+        //         )
+        //     )
+        // }
+
+        // let mut dodecahedron = Polyhedron::new(
+        //     dodecafaces,
+        // );
+
+        // pentagram2.render(&self);
+        // unit_cube.render(&self);
+        // pentagram.render(&self);
+        // onebyone.render(&self);
+
+        // self.polygons.push(pentagram2);
         self.polygons.push(pentagram);
-        self.polygons.push(onebyone);
+        // self.polygons.push(onebyone);
+
+        // dodecahedron.render(&self);
         for p in unit_cube.polygons {
             self.polygons.push(p)
         }
 
+
         //remove things that are too close or behind the camera
         self.polygons.retain(|p| {
-            p.center.2 + p.offset.2 + self.posz > 1.0
+            p.center.2 + p.offset.2 + self.world.world_translation_z > 1.0
         });
-        
+
+        self.render_polygons();
+
         self.polygons.sort_by(|a,b| {   // to render in the correct order
             b.center.2.partial_cmp(&a.center.2.to_owned()).unwrap()
         });
@@ -211,6 +301,12 @@ impl App {
                     .labels(["-1.0", "0", "1.0"].iter().cloned().map(Span::from).collect())),
             frame.size(),
         )
+    }
+
+    fn render_polygons(&mut self) {
+        (0..self.polygons.len()).for_each( |i | {
+            self.polygons.get_mut(i).unwrap().render(self.world.clone());
+        })
     }
 }
 
@@ -352,30 +448,30 @@ impl Polygon {
             .data(&self.projection)
     }
 
-    fn render(&mut self, app: &App){
+    fn render(&mut self, world: WorldMetrics){
         self.generate_points();
-        self.transform(&app);
-        self.project(app);
+        self.transform(&world);
+        self.project(&world);
     }
     
-    fn project(&mut self, app: &App){
+    fn project(&mut self, world: &WorldMetrics){
         let fov = PI/4.0; // 90deg
         let ez = 1.0/((fov/2.0).tan());
         self.projection = self.points.iter().map(|a| {
-            project_point(a.clone(), (0.0, 0.0, ez), (0.0,0.0,0.0)) 
+            project_point(a.clone(), (0.0, 0.0, ez), (world.camera_pitch,world.camera_yaw,0.0)) 
         }).collect()
     } 
 
-    pub fn transform(&mut self, app: &App) {
+    pub fn transform(&mut self, world: &WorldMetrics) {
         let tm = &self.transformation;
         for i in 0..self.points.len(){
             let (x,y,z) = self.points.get(i).unwrap();
 
             let (offx, offy, offz) = &self.offset;
 
-            let xx = tm[0][0]*x + tm[0][1]*y + tm[0][2]*z + offx + app.posx;  
-            let yy = tm[1][0]*x + tm[1][1]*y + tm[1][2]*z + offy + app.posy;  
-            let zz = tm[2][0]*x + tm[2][1]*y + tm[2][2]*z + offz + app.posz;  
+            let xx = tm[0][0]*x + tm[0][1]*y + tm[0][2]*z + offx + world.world_translation_x;  
+            let yy = tm[1][0]*x + tm[1][1]*y + tm[1][2]*z + offy + world.world_translation_y;  
+            let zz = tm[2][0]*x + tm[2][1]*y + tm[2][2]*z + offz + world.world_translation_z;  
             
             let (x,y, z) = self.points.get_mut(i).unwrap();
 
@@ -408,10 +504,14 @@ impl Polyhedron {
         }).collect()
     }
 
-    fn render(&mut self, app: &App) {
-        for i in 0..self.polygons.len(){
-            self.polygons.get_mut(i).unwrap().render(app)
-        }
+    async fn render(&mut self, world: WorldMetrics) {
+        let futures = async move {
+            (0..self.polygons.len()).for_each( |i | {
+                self.polygons.get_mut(i).unwrap().render(world.clone());
+            })
+        };
+
+        futures.await;
     } 
 }
 
@@ -519,12 +619,14 @@ fn project_point(a: Point3d, e: Point3d, t: Point3d) -> Point2d {
     let (ex, ey, ez): Point3d = e; // display's surface position relative to the camera position <0,0,0>
     let (tx, ty, tz): Point3d = t; // the angles of the camera (Tait-Brian angles)
     
-    let (cx, cy, cz): Point3d = (tx.cos(),ty.cos(),tz.cos());
+    let (cx, cy, cz): Point3d = (tx.cos(),ty.cos(),tz.cos()); //not to be confused with the position of the camera (ccx, ccy, ccz)
     let (sx, sy, sz): Point3d = (tx.sin(),ty.sin(),tz.sin());
+
+    let (ccx, ccy, ccz): Point3d = (0.0,0.0,0.0); // add this as a parameter later if necessary. It's only added to the code for easy migration.
     
-    let x = ax-cx;
-    let y = ay-cy;
-    let z = az-cz;
+    let x = ax-ccx;
+    let y = ay-ccy;
+    let z = az-ccz;
 
     let dx = cy * ((sz*y) + (cz*x)) - (sy*z);
     let dy = sx * ( (cy*z) + sy*( (sz*y) + (cz*x) ) ) + cx*( (cz*y) - (sz*x) );
@@ -534,4 +636,27 @@ fn project_point(a: Point3d, e: Point3d, t: Point3d) -> Point2d {
     let by = (ez/dz)*dy + ey;
     
     (bx,by) // projected point
+}
+
+#[derive(Debug,Clone)]
+pub struct WorldMetrics {
+    pub camera_pitch: f64,
+    pub camera_yaw: f64,
+    pub camera_roll: f64,
+    pub world_translation_x: f64,
+    pub world_translation_y: f64,
+    pub world_translation_z: f64,
+}
+
+impl Default for WorldMetrics {
+    fn default() -> Self {
+        WorldMetrics{
+            camera_pitch: 0.0,
+            camera_yaw: 0.0,
+            camera_roll: 0.0,
+            world_translation_x: 0.0,
+            world_translation_y: 0.0,
+            world_translation_z: 0.0,
+        }
+    }
 }
