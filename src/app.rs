@@ -10,6 +10,8 @@ use tui::symbols;
 use tui::terminal::Frame;
 use tui::text::Span;
 use tui::widgets::{Axis, Block, Borders, BorderType, Chart, Dataset, GraphType, Paragraph};
+use crate::quaternions::Quaternion;
+
 
 /// Application result type.
 pub type AppResult<T> = std::result::Result<T, Box<dyn error::Error>>;
@@ -387,6 +389,7 @@ struct Polygon{
     transformation: Matrix,
     projection: Points2d,
     center /*of gravity*/: Point3d,
+    q : Quaternion
 }
 
 impl Polygon {
@@ -463,11 +466,13 @@ impl Polygon {
     } 
 
     pub fn transform(&mut self, world: &WorldMetrics) {
-        let tm = &self.transformation;
+        let q = &self.q;
         for i in 0..self.points.len(){
-            let (x,y,z) = self.points.get(i).unwrap();
+            let a = self.points.get(i).unwrap();
 
             let (offx, offy, offz) = &self.offset;
+
+            let (xx,yy,zz) = q.rotate_point(a.into());
 
             let xx = tm[0][0]*x + tm[0][1]*y + tm[0][2]*z + offx + world.world_translation_x;  
             let yy = tm[1][0]*x + tm[1][1]*y + tm[1][2]*z + offy + world.world_translation_y;  

@@ -1,7 +1,7 @@
 use std::ops;
 
-#[derive(Clone)]
-struct Quaternion {
+#[derive(Clone, Debug)]
+pub struct Quaternion {
     a: f64, // scalar
     b: f64, // vector i
     c: f64, // vector j
@@ -9,7 +9,7 @@ struct Quaternion {
 }
 
 impl Quaternion {
-    fn new(    
+    pub fn new(    
         a: f64, // scalar
         b: f64, // vector i
         c: f64, // vector j
@@ -18,7 +18,7 @@ impl Quaternion {
         Quaternion{a,b,c,d}
     }
 
-    fn sum(q: Quaternion, p: Quaternion) -> Quaternion {
+    pub fn sum(q: Quaternion, p: Quaternion) -> Quaternion {
         Quaternion::new(
             q.a + p.a,
             q.b + p.b, 
@@ -27,7 +27,7 @@ impl Quaternion {
         )
     }
 
-    fn product(q: Quaternion, p: Quaternion) -> Quaternion {
+    pub fn product(q: Quaternion, p: Quaternion) -> Quaternion {
         Quaternion::new(
             (q.a * p.a) - (q.b * p.b) - (q.c * p.c) - (q.d * p.d),
             (q.a * p.b) + (q.b * p.a) + (q.c * p.d) - (q.d * p.c), 
@@ -36,34 +36,45 @@ impl Quaternion {
         )
     }
 
-    fn conjugate(&self) -> Quaternion {
+    pub fn scale(q: Quaternion, alpha: f64) -> Quaternion {
+        Quaternion::new(q.a*alpha, q.b*alpha, q.c*alpha, q.d*alpha)
+    }
+
+    pub fn conjugate(&self) -> Quaternion {
         Quaternion::new(self.a, -self.b, -self.c, -self.d)
     }
 
-    fn normalize(&self) -> f64 {
+    pub fn normalize(&self) -> f64 {
         ((self.a*self.a) + (self.b*self.b) + (self.c*self.c) + (self.d*self.d)).sqrt()
     }
 
-    fn unitize(&self) -> Quaternion {
+    pub fn unitize(&self) -> Quaternion {
         let l = self.normalize();
-        Quaternion::new(self.a/l, self.b/l, self.c/l, self.d/l)
+        self.clone() * (1.0/l)
     }
 
-    fn inverse(&self) -> Quaternion {
+    pub fn inverse(&self) -> Quaternion {
         let qi = self.conjugate();
         let l = self.normalize();
         let l2 = l*l;
-        Quaternion::new(qi.a/l2, qi.b/l2, qi.c/l2, qi.d/l2)
+        qi*(1.0/l2)
+    }
+    pub fn rotatation(&self, theta: f64) -> Quaternion {
+        let c = (theta/2.0).cos();
+        let s =  (theta/2.0).sin();
+        let u = self.unitize();
+        (u * s) + c
     }
 
-    fn rotate_point<Q>(&self, a: Q) -> (f64,f64,f64) 
+    pub fn rotate_point<Q>(&self, a: Q, theta: f64) -> (f64,f64,f64) 
     where Q: Into<Quaternion> {
-        let u = self.unitize();
-        let v = a.into();
-        let ui = u.inverse();
-        let lv = u*v*ui;
-        lv.into()
+        let p = a.into();
+        let q = self.rotatation(theta);
+        let qi = q.inverse();
+        let lp = q*p*qi;
+        lp.into()
     }
+
 
 }
 
@@ -74,10 +85,26 @@ impl ops::Add<Quaternion> for Quaternion {
     }
 }
 
+impl ops::Add<f64> for Quaternion {
+    type Output = Quaternion;
+    fn add(self, rhs: f64) -> Self::Output {
+        let mut q = self.clone();
+        q.a += rhs;
+        q
+    }
+}
+
 impl ops::Mul<Quaternion> for Quaternion {
     type Output = Quaternion;
     fn mul(self, rhs: Quaternion) -> Self::Output {
         Quaternion::product(self,rhs)        
+    }
+}
+
+impl ops::Mul<f64> for Quaternion {
+    type Output = Quaternion;
+    fn mul(self, rhs: f64) -> Self::Output {
+        Quaternion::scale(self, rhs)        
     }
 }
 
