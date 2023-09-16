@@ -11,11 +11,10 @@ use dddragon::tui::Tui;
 fn main() -> AppResult<()> {
     // Create an application.
     let mut app = App::new();
-
     // Initialize the terminal user interface.
     let backend = CrosstermBackend::new(io::stderr());
     let terminal = Terminal::new(backend)?;
-    let events = EventHandler::new(250);
+    let events = EventHandler::new(20);
     let s = terminal.size();
     println!("{s:?}");
     let mut tui = Tui::new(terminal, events);

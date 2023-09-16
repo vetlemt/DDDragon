@@ -23,7 +23,7 @@ impl Quaternion {
             q.a + p.a,
             q.b + p.b, 
             q.c + p.c,
-             q.d + p.d
+            q.d + p.d
         )
     }
 
@@ -44,18 +44,18 @@ impl Quaternion {
         Quaternion::new(self.a, -self.b, -self.c, -self.d)
     }
 
-    pub fn normalize(&self) -> f64 {
+    pub fn len(&self) -> f64 {
         ((self.a*self.a) + (self.b*self.b) + (self.c*self.c) + (self.d*self.d)).sqrt()
     }
 
     pub fn unitize(&self) -> Quaternion {
-        let l = self.normalize();
+        let l = self.len();
         self.clone() * (1.0/l)
     }
 
     pub fn inverse(&self) -> Quaternion {
         let qi = self.conjugate();
-        let l = self.normalize();
+        let l = self.len();
         let l2 = l*l;
         qi*(1.0/l2)
     }
@@ -85,10 +85,17 @@ impl ops::Add<Quaternion> for Quaternion {
     }
 }
 
+impl ops::Sub<Quaternion> for Quaternion {
+    type Output = Quaternion;
+    fn sub(self, rhs: Quaternion) -> Self::Output {
+        Quaternion::sum(self, Quaternion::scale(rhs, -1.0))
+    }
+}
+
 impl ops::Add<f64> for Quaternion {
     type Output = Quaternion;
     fn add(self, rhs: f64) -> Self::Output {
-        let mut q = self.clone();
+        let mut q = self;
         q.a += rhs;
         q
     }

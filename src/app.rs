@@ -1,6 +1,7 @@
 use std::borrow::BorrowMut;
 use std::error;
 use std::f64::consts::PI;
+use std::time::{SystemTime, UNIX_EPOCH};
 use futures::future::join_all;
 use threadpool::ThreadPool;
 use tui::backend::Backend;
@@ -54,13 +55,13 @@ impl App {
 
     /// Renders the user interface widgets. 
     pub fn render<B: Backend>(&mut self, frame: &mut Frame<'_, B>) {
+
         // This is where you add new widgets.
         // See the following resources:
         // - https://docs.rs/tui/0.16.0/tui/widgets/index.html
         // - https://github.com/fdehau/tui-rs/tree/v0.16.0/examples
+        self.world.update_timestamp();
         self.polygons.clear();
-
-        let player_height = 0.1;
 
         frame.size().area();
 
@@ -70,7 +71,7 @@ impl App {
         // println!("ratio {}", self.n);
         let character_ratio = 1.8;
         let aspect_ratio = res_x / res_y / character_ratio;
-        let aspect_padding = (aspect_ratio-1.0)/2.0;
+        let aspect_padding = (aspect_ratio-1.0)/2.0; 
 
         let x_left = -1.0-aspect_padding;
         let x_right = 1.0+aspect_padding;
@@ -83,27 +84,8 @@ impl App {
         let tm: [[f64; 3]; 3] = MatrixFactory::rotate((0.0).into(),(0.0).into(),(0.0).into());
         let tm2: [[f64; 3]; 3] = MatrixFactory::rotate((0.0/2.0).into(),(0.0/2.0).into(),(0.0).into());
 
-        // let mut triangle = Polygon::new(
-        //     vec![
-        //         Point::new(0.0 , 0.25),
-        //         Point::new(0.25, -0.25),
-        //         Point::new(-0.25, -0.25),
-        //     ],
-        //     Color::Yellow,
-        //     (0.0,0.0),
-        //     tm,
-        // );
-
-        let mut onebyone = Polygon::new(
-            vec![
-                (-1.0, -1.0, 0.0),
-                (-1.0, 1.0 , 0.0),
-                (1.0 , 1.0 , 0.0),
-                (1.0 , -1.0, 0.0),
-            ],
-            Color::Gray,
-            (1.0,1.0,7.0),MatrixFactory::identity(),
-        );
+        let q = Quaternion::new(0.0,1.0,1.0,1.0);
+        let q2 = Quaternion::new(0.0,0.0,1.0,1.0);
 
         let pentagram_vert: Points3d = (0..5).into_iter().map(|n| {
             let step = 2.0*PI/5.0;
@@ -117,14 +99,14 @@ impl App {
             pentagram_vert.clone(),
             Color::Red,
             (0.0,0.0,7.0),
-            tm2,
+            q.clone()
         );
 
         let mut pentagram2 = Polygon::new(
             pentagram_vert,
             Color::Red,
             (0.0,0.0,7.0),
-            tm2,
+            q.clone()
         );
         let ftr = ( 1.0, 1.0, 1.0);  // naming : (front || back) && (top || bottom) && (left || right)
         let ftl = (-1.0, 1.0, 1.0);
@@ -143,28 +125,28 @@ impl App {
                         ftr, fbr, fbl, ftl
                     ],
                     Color::Blue,
-                    (0.0,0.0,7.0),tm2
+                    (0.0,0.0,7.0), q.clone(),
                 ),
                 Polygon::new(
                     vec![
                         ftr, fbr, bbr, btr
                     ],
                     Color::Green,
-                    (0.0,0.0,7.0),tm2
+                    (0.0,0.0,7.0),q.clone()
                 ),
                 Polygon::new(
                     vec![                        
                         btr, bbr, bbl, btl
                     ],
                     Color::LightYellow,
-                    (0.0,0.0,7.0),tm2
+                    (0.0,0.0,7.0),q.clone()
                 ),
                 Polygon::new(
                     vec![
                         ftl, fbl, bbl, btl
-                    ],
+                    ], 
                     Color::Magenta,
-                    (0.0,0.0,7.0),tm2
+                    (0.0,0.0,7.0),q.clone()
                 ),
 
             ]
@@ -229,36 +211,6 @@ impl App {
             } 
             dodecaskeleton.push(closest_vertex);
         }
-
-        // let mut dodecahedron = Polygon::new(dodecaskeleton, Color::Green, (0.0,0.0,10.0), tm);
-        // dodecahedron.render(&self); 
-        // self.polygons.push(dodecahedron);
-        
-        // let mut dodecafaces : Vec<Polygon> = Vec::new();
-        // for i in 0..12 {
-        //     dodecafaces.push(
-        //         Polygon::new(
-        //             vec![
-        //                 dodecavertexes.get(i % 20).unwrap().clone(),
-        //                 dodecavertexes.get((i+3) % 20).unwrap().clone(),
-        //                 dodecavertexes.get((i+6) % 20).unwrap().clone(),
-        //                 dodecavertexes.get((i+9) % 20).unwrap().clone(),
-        //                 dodecavertexes.get((i+12) % 20).unwrap().clone(),
-        //             ], 
-        //             Color::Green, 
-        //             (0.0,0.0,10.0),tm 
-        //         )
-        //     )
-        // }
-
-        // let mut dodecahedron = Polyhedron::new(
-        //     dodecafaces,
-        // );
-
-        // pentagram2.render(&self);
-        // unit_cube.render(&self);
-        // pentagram.render(&self);
-        // onebyone.render(&self);
 
         // self.polygons.push(pentagram2);
         self.polygons.push(pentagram);
@@ -334,8 +286,25 @@ impl Line{
             color,
         }
     }
+    fn len(&self) -> f64 {
+        let s = Quaternion::from(self.start);
+        let e = Quaternion::from(self.end);
+        let d = e - s;  
+        d.len()
+    }
 
-    
+    fn approximate_projected_size(start: Point3d, end: Point3d, e: Point3d, t: Point3d, character_ratio: f64) -> f64 {
+        let (dx, dy) =  Line::projected_extremeties(start, end, e, t);
+        let (cx, cy) = (dx*character_ratio, dy);
+        
+        ((cx*cx) + (cy*cy)).sqrt()
+    }
+
+    fn projected_extremeties(start: Point3d, end: Point3d, e: Point3d, t: Point3d) -> Point2d {
+        let (sx,sy) = project_point(start, e, t);
+        let (ex, ey) = project_point(end, e, t);
+        (ex-sx, ey-sy)
+    }
 
     fn center_point_of(a: &Point3d, b: &Point3d) -> Point3d {
         let (a0, a1, a2) = a;
@@ -359,25 +328,6 @@ impl Line{
         }).collect();
         data
     }
-
-    // pub fn as_data(&self) -> Vec<(f64, f64)> {
-    //     self.points.clone()
-    // }
-
-    // pub fn as_dataset(&self) -> Dataset{
-
-    //     Dataset::default()
-    //         .marker(symbols::Marker::Braille)
-    //         .graph_type(GraphType::Line)
-    //         .style(Style::default().fg(self.color))
-    //         .data(&self.points)
-    // } 
- 
-
-    // pub fn color(mut self, color : Color) -> Self {
-    //     self.color = color;
-    //     self
-    // }
 }
 
 #[derive(Debug)]
@@ -386,49 +336,48 @@ struct Polygon{
     points: Points3d,
     color: Color,
     offset: Point3d,
-    transformation: Matrix,
     projection: Points2d,
     center /*of gravity*/: Point3d,
     q : Quaternion
 }
 
 impl Polygon {
-    fn new(vertices: Points3d, color : Color, offset: Point3d, transformation: Matrix) -> Self{
+    fn new(vertices: Points3d, color : Color, offset: Point3d, q: Quaternion) -> Self{
         Self{
             vertices: vertices.clone(),
             center: (0.0f64,0.0f64,0.0f64),
             points: Vec::new(),
             color,
             offset,
-            transformation,
+            q,
             projection: Vec::new(),
         }
     }
     fn generate_sides_and_center(&mut self) -> Vec<Line> {
         let (c0, c1, c2) = self.center.borrow_mut();
         let mut sides : Vec<Line> = Vec::new();
-        for i in 1..self.vertices.len() {
+        for i in 1..self.vertices.len() { //  
             let l = Line::new(
                 self.vertices[i-1].clone(),
                 self.vertices[i].clone(),
                 self.color
             );
-            let (l0, l1, l2) = l.center;
-            *c0 += l0; *c1 += l1; *c2 += l2;
-            sides.push(l);
+            let (l0, l1, l2) = l.center;   // centering
+            *c0 += l0; *c1 += l1; *c2 += l2; // centering
+            sides.push(l); 
         }
         let l = Line::new(
             self.vertices[self.vertices.len()-1].clone(),
             self.vertices[0].clone(),
             self.color
         );
-        let (l0, l1, l2) = l.center;
-        *c0 += l0; *c1 += l1; *c2 += l2;
+        let (l0, l1, l2) = l.center; // centering
+        *c0 += l0; *c1 += l1; *c2 += l2; // centering
         
         sides.push(l);
         
-        let n = sides.len() as f64;
-        *c0 /= n; *c1 /= n; *c2 /= n;
+        let n = sides.len() as f64; // centering
+        *c0 /= n; *c1 /= n; *c2 /= n; // centering
         
         sides
     }
@@ -472,15 +421,16 @@ impl Polygon {
 
             let (offx, offy, offz) = &self.offset;
 
-            let (xx,yy,zz) = q.rotate_point(a.into());
+            let t = world.frame_timestamp; 
+            let w = t*PI/5000.0;
 
-            let xx = tm[0][0]*x + tm[0][1]*y + tm[0][2]*z + offx + world.world_translation_x;  
-            let yy = tm[1][0]*x + tm[1][1]*y + tm[1][2]*z + offy + world.world_translation_y;  
-            let zz = tm[2][0]*x + tm[2][1]*y + tm[2][2]*z + offz + world.world_translation_z;  
+            let (xx,yy,zz) = q.rotate_point(a.clone(), w);
             
             let (x,y, z) = self.points.get_mut(i).unwrap();
 
-            *x = xx; *y = yy; *z = zz;
+            *x = xx + offx + world.world_translation_x;
+            *y = yy + offy + world.world_translation_y; 
+            *z = zz + offz + world.world_translation_z;
         }
     }
 
@@ -651,6 +601,8 @@ pub struct WorldMetrics {
     pub world_translation_x: f64,
     pub world_translation_y: f64,
     pub world_translation_z: f64,
+    pub frame_timestamp: f64,
+
 }
 
 impl Default for WorldMetrics {
@@ -662,6 +614,22 @@ impl Default for WorldMetrics {
             world_translation_x: 0.0,
             world_translation_y: 0.0,
             world_translation_z: 0.0,
+            frame_timestamp: Self::get_timestamp(),
         }
+    }
+
+}
+
+impl WorldMetrics {
+    pub fn get_timestamp() -> f64 {
+        SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("time went backwards!")
+        .as_millis() 
+        as f64
+    }
+
+    pub fn update_timestamp(&mut self) {
+        self.frame_timestamp = Self::get_timestamp();
     }
 }
