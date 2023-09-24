@@ -23,6 +23,7 @@ type Point2d = (f64,f64);
 type Points3d = Vec<(f64,f64,f64)>;
 type Points2d = Vec<(f64,f64)>;
 
+
 /// Application.
 #[derive(Debug)]
 pub struct App {
@@ -80,12 +81,8 @@ impl App {
         let x_right_label = format!("{x_right:0.2}");
         let x_middle_label = format!("{:0.2}", (x_left + x_right)/2.0);
 
-
-        let tm: [[f64; 3]; 3] = MatrixFactory::rotate((0.0).into(),(0.0).into(),(0.0).into());
-        let tm2: [[f64; 3]; 3] = MatrixFactory::rotate((0.0/2.0).into(),(0.0/2.0).into(),(0.0).into());
-
+        let q0 = Quaternion::new(0.0,0.0,0.0,0.0);
         let q = Quaternion::new(0.0,1.0,1.0,1.0);
-        let q2 = Quaternion::new(0.0,0.0,1.0,1.0);
 
         let pentagram_vert: Points3d = (0..5).into_iter().map(|n| {
             let step = 2.0*PI/5.0;
@@ -212,19 +209,41 @@ impl App {
             dodecaskeleton.push(closest_vertex);
         }
 
+        let z = 0.0;
+        let a = 1.0;
+        let b = 0.5;
+        let c = 0.8;
+        let eye = Polygon::new(
+            vec![
+                (-a, z, z),
+                (-c, b, z),
+                (c, b, z),
+                (a, z, z),
+                (c, -b, z),
+                (-c, -b, z),
+            ],
+            Color::Red,
+            (-1.0, -1.0, 8.0),
+            q0
+        );
+
+        self.polygons.push(eye); 
+
+
+
         // self.polygons.push(pentagram2);
         self.polygons.push(pentagram);
         // self.polygons.push(onebyone);
 
-        // dodecahedron.render(&self);
-        for p in unit_cube.polygons {
-            self.polygons.push(p)
-        }
+        // // dodecahedron.render(&self);
+        // for p in unit_cube.polygons {
+        //     self.polygons.push(p)
+        // }
 
 
         //remove things that are too close or behind the camera
         self.polygons.retain(|p| {
-            p.center.2 + p.offset.2 + self.world.world_translation_z > 1.0
+            p.center.2 + p.translation.2 + self.world.world_translation_z > 1.0
         });
 
         self.render_polygons();
@@ -264,6 +283,10 @@ impl App {
     }
 }
 
+// fn projected_to_char_coord(x: f64, y:f64, aspect_ratio: f64, char_ratio: f64) -> (u16,u16) {
+    
+// }
+
 
 
 const LINE_POINTS: i32 = 200;
@@ -286,6 +309,9 @@ impl Line{
             color,
         }
     }
+
+
+
     fn len(&self) -> f64 {
         let s = Quaternion::from(self.start);
         let e = Quaternion::from(self.end);
@@ -332,14 +358,15 @@ impl Line{
 
 #[derive(Debug)]
 struct Polygon{
+    projection: Points2d,
     vertices: Points3d,
     points: Points3d,
-    color: Color,
-    offset: Point3d,
-    projection: Points2d,
     center /*of gravity*/: Point3d,
-    q : Quaternion
+    color: Color,
+    translation: Point3d,
+    rotation : Quaternion
 }
+
 
 impl Polygon {
     fn new(vertices: Points3d, color : Color, offset: Point3d, q: Quaternion) -> Self{
@@ -348,8 +375,8 @@ impl Polygon {
             center: (0.0f64,0.0f64,0.0f64),
             points: Vec::new(),
             color,
-            offset,
-            q,
+            translation: offset,
+            rotation: q,
             projection: Vec::new(),
         }
     }
@@ -407,7 +434,7 @@ impl Polygon {
     }
     
     fn project(&mut self, world: &WorldMetrics){
-        let fov = PI/4.0; // 90deg
+        let fov = PI/2.0; // 90deg
         let ez = 1.0/((fov/2.0).tan());
         self.projection = self.points.iter().map(|a| {
             project_point(a.clone(), (0.0, 0.0, ez), (world.camera_pitch,world.camera_yaw,0.0)) 
@@ -415,14 +442,15 @@ impl Polygon {
     } 
 
     pub fn transform(&mut self, world: &WorldMetrics) {
-        let q = &self.q;
+        let q = &self.rotation;
         for i in 0..self.points.len(){
             let a = self.points.get(i).unwrap();
 
-            let (offx, offy, offz) = &self.offset;
+            let (offx, offy, offz) = &self.translation;
 
-            let t = world.frame_timestamp; 
-            let w = t*PI/5000.0;
+            // let t = world.frame_timestamp; 
+            // let w = t*PI/5000.0;
+            let w = 0.0;
 
             let (xx,yy,zz) = q.rotate_point(a.clone(), w);
             
@@ -470,6 +498,14 @@ impl Polyhedron {
     } 
 }
 
+
+struct Surface {
+    map: Vec<Vec<Option<Point3d>>>,
+}
+
+impl Surface {
+
+}
 
 type Matrix = [[f64;3];3];
 
