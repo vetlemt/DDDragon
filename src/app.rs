@@ -276,7 +276,7 @@ struct Line{
     color: Color,
 }
 
-impl Line{
+impl  Line{
     fn new(start: Point3d, end: Point3d, color: Color) -> Line{
         Line{
             points: Line::interpolate(&start, &end),
@@ -407,7 +407,7 @@ impl Polygon {
     }
     
     fn project(&mut self, world: &WorldMetrics){
-        let fov = PI/4.0; // 90deg
+        let fov = 2.0*PI/5.0;  /* 72 deg */ /* PI/2.0; // 90deg */
         let ez = 1.0/((fov/2.0).tan());
         self.projection = self.points.iter().map(|a| {
             project_point(a.clone(), (0.0, 0.0, ez), (world.camera_pitch,world.camera_yaw,0.0)) 
